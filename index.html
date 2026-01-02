@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gelişmiş Yapılacaklar Listesi</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f4f8;
+      display: flex;
+      justify-content: center;
+      padding-top: 50px;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .container {
+      background: white;
+      padding: 20px 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 350px;
+    }
+
+    input[type="text"], input[type="date"] {
+      padding: 10px;
+      margin-right: 5px;
+      margin-bottom: 10px;
+      width: calc(50% - 12px);
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-sizing: border-box;
+    }
+
+    button {
+      padding: 10px 15px;
+      background-color: #38bdf8;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-right: 5px;
+      margin-bottom: 10px;
+    }
+
+    button#export-btn {
+      background-color: #22c55e;
+    }
+
+    .filters {
+      margin-bottom: 10px;
+    }
+
+    .filters label {
+      margin-right: 10px;
+      font-size: 0.9rem;
+    }
+
+    #search-input {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 15px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      min-height: 50px;
+    }
+
+    li {
+      background: #f9fafb;
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: grab;
+      user-select: none;
+      transition: background-color 0.3s;
+    }
+
+    li.dragging {
+      opacity: 0.5;
+    }
+
+    .completed {
+      text-decoration: line-through;
+      color: gray;
+      background-color: #d1fae5 !important;
+    }
+
+    li .info {
+      flex-grow: 1;
+      margin-right: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    li .buttons button {
+      margin-left: 5px;
+      padding: 5px 10px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    li.due-soon {
+      background-color: #fed7d7;
+    }
+
+    li.due-today {
+      background-color: #fef3c7;
+    }
+
+    #theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      padding: 8px 12px;
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    body.dark {
+      background-color: #1a202c;
+      color: white;
+    }
+
+    body.dark .container {
+      background-color: #2d3748;
+    }
+
+    body.dark input,
+    body.dark button,
+    body.dark li {
+      background-color: #4a5568;
+      color: white;
+      border-color: #718096;
+    }
+  </style>
+</head>
+<body>
+  <button id="theme-toggle">🌙</button>
+  <div class="container">
+    <h1>📝 Yapılacaklar</h1>
+
+    <input type="text" id="todo-input" placeholder="Yeni görev yaz..." />
+    <input type="date" id="todo-date" />
+
+    <button id="add-btn">Ekle</button>
+    <button id="export-btn">Dışa Aktar</button>
+
+    <div class="filters">
+      <label><input type="radio" name="filter" value="all" checked /> Tümü</label>
+      <label><input type="radio" name="filter" value="completed" /> Tamamlananlar</label>
+      <label><input type="radio" name="filter" value="pending" /> Tamamlanmayanlar</label>
+      <label><input type="radio" name="filter" value="date" /> Tarihe Göre Sırala</label>
+    </div>
+
+    <input type="text" id="search-input" placeholder="Ara..." />
+
+    <ul id="todo-list"></ul>
+  </div>
+
+  <script>
+    const input = document.getElementById("todo-input");
+    const dateInput = document.getElementById("todo-date");
+    const addBtn = document.getElementById("add-btn");
+    const exportBtn = document.getElementById("export-btn");
+    const todoList = document.getElementById("todo-list");
+    const searchInput = document.getElementById("search-input");
+    const filterRadios = document.querySelectorAll('input[name="filter"]');
+    const themeToggle = document.getElementById("theme-toggle");
+
+    let todos = JSON.parse(localStorage.getItem("todos")) || [];
+
+    function saveToLocalStorage() {
+      localStorage.setItem("todos", JSON.stringify(todos));
+    }
+
+    function sortByDate(arr) {
+      return arr.slice().sort((a, b) => {
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return new Date(a.date) - new Date(b.date);
+      });
+    }
+
+    function getFilteredTodos() {
+      const filter = document.querySelector('input[name="filter"]:checked').value;
+      let filtered = todos;
+
+      if (filter === "completed") {
+        filtered = todos.filter(todo => todo.completed);
+      } else if (filter === "pending") {
+        filtered = todos.filter(todo => !todo.completed);
+      } else if (filter === "date") {
+        filtered = sortByDate(todos);
+      }
+
+      const searchTerm = searchInput.value.toLowerCase();
+      if (searchTerm) {
+        filtered = filtered.filter(todo => todo.text.toLowerCase().includes(searchTerm));
+      }
+
+      return filtered;
+    }
+
+    function setDueColors(li, todo) {
+      if (!todo.date) return;
+
+      const today = new Date();
+      const dueDate = new Date(todo.date);
+      const diffTime = dueDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 3600 * 24));
+
+      li.classList.remove("due-soon", "due-today");
+      li.style.backgroundColor = "";
+
+      if (diffDays < 0) {
+        li.style.backgroundColor = "#f87171";
+      } else if (diffDays === 0) {
+        li.classList.add("due-today");
+      } else if (diffDays <= 2) {
+        li.classList.add("due-soon");
+      }
+    }
+
+    function renderTodos() {
+      todoList.innerHTML = "";
+      const filteredTodos = getFilteredTodos();
+
+      filteredTodos.forEach((todo, index) => {
+        const li = document.createElement("li");
+        li.className = todo.completed ? "completed" : "";
+        li.draggable = true;
+        li.dataset.index = index;
+
+        const info = document.createElement("div");
+        info.className = "info";
+        info.textContent = todo.text + " - " + (todo.date ? todo.date : "Tarih yok");
+        li.appendChild(info);
+
+        setDueColors(li, todo);
+
+        info.addEventListener("click", () => {
+          todo.completed = !todo.completed;
+          saveToLocalStorage();
+          renderTodos();
+        });
+
+        const btnContainer = document.createElement("div");
+        btnContainer.className = "buttons";
+
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "Düzenle";
+        editBtn.addEventListener("click", () => {
+          editTodo(index);
+        });
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "Sil";
+        deleteBtn.addEventListener("click", () => {
+          todos.splice(index, 1);
+          saveToLocalStorage();
+          renderTodos();
+        });
+
+        btnContainer.appendChild(editBtn);
+        btnContainer.appendChild(deleteBtn);
+        li.appendChild(btnContainer);
+
+        li.addEventListener("dragstart", dragStart);
+        li.addEventListener("dragover", dragOver);
+        li.addEventListener("drop", drop);
+        li.addEventListener("dragend", dragEnd);
+
+        todoList.appendChild(li);
+      });
+    }
+
+    function editTodo(index) {
+      const newText = prompt("Görevi düzenle:", todos[index].text);
+      if (newText === null) return;
+      if (newText.trim() === "") return alert("Görev boş olamaz!");
+
+      const newDate = prompt("Tarihi düzenle (YYYY-MM-DD):", todos[index].date || "");
+      if (newDate !== null && newDate.trim() !== "") {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate.trim())) {
+          alert("Tarih formatı yanlış! (YYYY-MM-DD şeklinde olmalı)");
+          return;
+        }
+        todos[index].date = newDate.trim();
+      } else {
+        todos[index].date = "";
+      }
+
+      todos[index].text = newText.trim();
+      saveToLocalStorage();
+      renderTodos();
+    }
+
+    addBtn.addEventListener("click", () => {
+      const text = input.value.trim();
+      const date = dateInput.value;
+
+      if (text === "") {
+        alert("Lütfen görev girin!");
+        return;
+      }
+
+      todos.push({ text, completed: false, date });
+      input.value = "";
+      dateInput.value = "";
+      saveToLocalStorage();
+      renderTodos();
+    });
+
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") addBtn.click();
+    });
+
+    dateInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") addBtn.click();
+    });
+
+    searchInput.addEventListener("input", renderTodos);
+
+    filterRadios.forEach(radio => {
+      radio.addEventListener("change", renderTodos);
+    });
+
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      const isDark = document.body.classList.contains("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      themeToggle.textContent = isDark ? "☀" : "🌙";
+    });
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme === "dark") {
+        document.body.classList.add("dark");
+        themeToggle.textContent = "☀";
+      }
+      renderTodos();
+    });
+
+    exportBtn.addEventListener("click", () => {
+      const dataStr = JSON.stringify(todos, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "todos.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    let draggedIndex = null;
+
+    function dragStart(e) {
+      draggedIndex = +e.currentTarget.dataset.index;
+      e.currentTarget.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+    }
+
+    function dragOver(e) {
+      e.preventDefault();
+      const target = e.currentTarget;
+      const targetIndex = +target.dataset.index;
+      if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+      const rect = target.getBoundingClientRect();
+      const halfway = rect.top + rect.height / 2;
+
+      if (e.clientY < halfway) {
+        todoList.insertBefore(todoList.children[draggedIndex], target);
+      } else {
+        todoList.insertBefore(todoList.children[draggedIndex], target.nextSibling);
+      }
+    }
+
+    function drop(e) {
+      e.preventDefault();
+      const target = e.currentTarget;
+      const targetIndex = +target.dataset.index;
+      if (draggedIndex === null || draggedIndex === targetIndex) return;
+
+      const movedItem = todos.splice(draggedIndex, 1)[0];
+      todos.splice(targetIndex, 0, movedItem);
+      saveToLocalStorage();
+      renderTodos();
+      draggedIndex = null;
+    }
+
+    function dragEnd(e) {
+      e.currentTarget.classList.remove("dragging");
+      draggedIndex = null;
+    }
+  </script>
+</body>
+</html>
