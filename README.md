@@ -1,5 +1,4 @@
 📝 To-Do List Uygulaması
-📌 Proje Tanımı
 
 Bu proje, kullanıcıların günlük yapılacak işlerini takip edebilmesi için geliştirilmiş basit bir To-Do List web uygulamasıdır. Kullanıcılar görev ekleyebilir, silebilir ve tamamlanan görevleri işaretleyebilir.
 
@@ -44,3 +43,6 @@ Responsive tasarım
 👩‍💻 Geliştirici
 
 Emine Coşkun
+şevval aşıklı 
+baran kurt
+yusuf emre eyigün
